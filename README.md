@@ -13,6 +13,8 @@ this to work properly.
 Users authentication using their assigned client certificate.  
   
 Behind the scene, it just creates "hosts" files for dnsmasq to consume.
+It relies on internyet\_proxy to authenticate users and should not be
+exposed directly.
 
 
 ## Example usage
