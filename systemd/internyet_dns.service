@@ -1,0 +1,19 @@
+# Systemd service unit file for internyet_dns compiled with:
+# CGO_ENABLED=0 GOOS=linux go build -a -tags netgo -ldflags '-w -extldflags "-static"'
+#
+[Unit]
+Description=Internyet DNS
+After=network.target
+ 
+[Service]
+# File containing environment variable definition, used as configuration for the instance 
+EnvironmentFile=/etc/internyet.env
+
+Type=simple
+User=internyet
+Group=internyet
+ExecStart=/usr/local/bin/internyet_dns
+Restart=on-failure
+ 
+[Install]
+WantedBy=multi-user.target

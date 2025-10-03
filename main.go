@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"log"
+	"slices"
 	"strings"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 )
 
 var configurationDirectory, rootDomain, listenAddress string
+var subDomainRegexp, _ = regexp.Compile("^[a-z]([-a-z0-9]*[a-z0-9])?$")
 
 // ---
 func init() {
@@ -37,22 +39,39 @@ func configurationHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	var clientGreatHouses []string
+	clientGreatHousesHeader := request.Header.Get("X-Internyet-Client-Great-Houses")
+	if clientGreatHousesHeader != "" {
+		clientGreatHouses = strings.Split(clientGreatHousesHeader, ",")
+	} 
+
 	if request.Header.Get("X-SillyCSRF") != "false" {
 		http.Error(response, "Request missing CSRF header", http.StatusBadRequest)
 		return
 	}
 
 	path := request.URL.Path
-	path = strings.TrimPrefix(path, "/api/v1/")
+	path = strings.TrimPrefix(path, "/api/v2/")
 	pathParts := strings.Split(path, "/")
-	if len(pathParts) != 3 {
+
+	var greatHouseSubDomain, targetAddress string
+	var isForGreatHouse bool
+	
+	if len(pathParts) == 3 {
+		targetAddress = pathParts[2]
+
+	} else if len(pathParts) == 4 {
+		isForGreatHouse = true
+		greatHouseSubDomain = pathParts[2]
+		targetAddress = pathParts[3]
+				
+	} else {
 		http.Error(response, "URL path format is invalid", http.StatusBadRequest)
 		return
 	}
 
 	recordType := pathParts[0]
 	subDomain := pathParts[1]
-	targetAddress := pathParts[2]
 
 	if recordType != "A" && recordType != "AAAA" {
 		http.Error(response, "Record type is invalid: " + recordType, http.StatusBadRequest)
@@ -64,13 +83,28 @@ func configurationHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	if isForGreatHouse && greatHouseSubDomain == "" {
+		http.Error(response, "URL part for great house is empty", http.StatusBadRequest)
+		return
+	}
+
 	if targetAddress == "" {
 		http.Error(response, "URL part for target address is empty", http.StatusBadRequest)
 		return
 	}
 
-	if ! regexp.MustCompile("^[a-z]+$").MatchString(subDomain) {
-		http.Error(response, "URL part for sub-domain is not a-z: " + subDomain, http.StatusBadRequest)
+	if len(subDomain) > 63 || len(greatHouseSubDomain) > 63 {
+		http.Error(response, "URL part for sub-domain/great house is too long", http.StatusBadRequest)
+		return
+	}
+	
+	if ! subDomainRegexp.MatchString(subDomain) {
+		http.Error(response, "URL part for sub-domain is invalid", http.StatusBadRequest)
+		return
+	}
+
+	if isForGreatHouse && ! subDomainRegexp.MatchString(greatHouseSubDomain) {
+		http.Error(response, "URL part for great house is invalid", http.StatusBadRequest)
 		return
 	}
 
@@ -78,7 +112,14 @@ func configurationHandler(response http.ResponseWriter, request *http.Request) {
 		targetAddress = sourceAddress
 	}
 
-	domain := subDomain + "." + clientAlias + "." + rootDomain
+	var domain string
+	if isForGreatHouse {
+		domain = subDomain + "." + greatHouseSubDomain + ".g." + rootDomain
+
+	} else {
+		domain = subDomain + "." + clientAlias + ".p." + rootDomain
+	}
+
 	log.Printf(
 		"Participant \"%s@%s\" is trying to register %s \"%s\" to \"%s\"",
 		clientAlias, sourceAddress, recordType, domain, targetAddress)
@@ -117,6 +158,13 @@ func configurationHandler(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
+	if isForGreatHouse {
+		if ! slices.Contains(clientGreatHouses, greatHouseSubDomain) {
+			http.Error(response, "Client isn't member of specified great house", http.StatusBadRequest)
+			return
+		}
+	}
+
 	filePath := configurationDirectory + "/" + recordType + "_" + domain
 	hostsEntry := parsedAddress.String() + " " + domain
 	log.Printf("Writing \"%s\" to \"%s\"", hostsEntry, filePath)
@@ -134,6 +182,7 @@ func configurationHandler(response http.ResponseWriter, request *http.Request) {
 
 // ---
 func main() {
-	http.HandleFunc("/api/v1/", configurationHandler)
+	http.HandleFunc("/api/v2/", configurationHandler)
+	log.Print("Starting listener on ", listenAddress)
 	log.Fatal(http.ListenAndServe(listenAddress, nil))
 }

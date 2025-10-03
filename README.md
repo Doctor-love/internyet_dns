@@ -2,13 +2,14 @@
 
 ## Introduction
 This service enables party participants to register/configure arbitrary DNS
-sub-domains under their own "namespace" (\*.\$ALIAS.e01.internyet.party).  
+sub-domains under their own "namespace" (\*.\$ALIAS.p.nyet). If they are member
+of a great house, it is also possible to manage sub-domains under the "group
+namespace" (\*.\$GREAT\_HOUSE\_NAME.g.nyet)
   
 Records can be defined by specifying an IPv4 address for A records or an IPv6
 address for AAAA records. The special value "this" will use the client's
 source address ("dynamic DNS"), but make sure to use the sub-domain
-"v4.dns.core.e01.internyet.party" or "v6.dns.core.e01.internyet.party" for
-this to work properly.  
+"v4.dns.c.nyet" or "v6.dns.c.nyet" for this to work properly.  
   
 Users authentication using their assigned client certificate.  
   
@@ -20,7 +21,7 @@ exposed directly.
 ## Example usage
 ```
 # Register A record for the sub-domain
-# www.$ALIAS.e01.internyet.party
+# www.$ALIAS.p.nyet
 # to 10.13.37.42
 
 $ curl \
@@ -29,14 +30,14 @@ $ curl \
   --key /home/haxor/x509/client.key \
   --request POST \
   --header "X-SillyCSRF: false" \
-  https://dns.core.e01.internyet.party/api/v1/A/www/10.13.37.42
+  https://dns.c.nyet/api/v2/A/www/10.13.37.42
 
-$ host www.darkdagger.e01.internyet.party
+$ host www.darkdagger.p.nyet
 
-www.darkdagger.e01.internyet.party has address 10.13.37.42
+www.darkdagger.p.nyet has address 10.13.37.42
 
 # Register A record for the sub-domain
-# deck.$ALIAS.e01.internyet.party
+# deck.$ALIAS.p.nyet
 # to the client's source IP ("dynamic DNS")
 
 $ curl \
@@ -45,9 +46,25 @@ $ curl \
   --key /home/haxor/x509/client.key \
   --request POST \
   --header "X-SillyCSRF: false" \
-  https://v4.dns.core.e01.internyet.party/api/v1/A/deck/this
+  https://v4.dns.c.nyet/api/v2/A/deck/this
 
-$ host deck.darkdagger.e01.internyet.party
+$ host deck.darkdagger.p.nyet
 
-deck.darkdagger.e01.internyet.party has address 10.13.37.105
+deck.darkdagger.p.nyet has address 10.13.37.105
+
+# Register A record for the great house sub-domain
+# ctf.legrup.g.nyet
+# to 10.13.37.13
+
+$ curl \
+  --cacert /home/haxor/x509/ca.crt \
+  --cert /home/haxor/x509/client.crt \
+  --key /home/haxor/x509/client.key \
+  --request POST \
+  --header "X-SillyCSRF: false" \
+  https://dns.c.nyet/api/v2/A/ctf/legrup/10.13.37.13
+
+$ host ctf.legrup.g.nyet
+
+ctf.legrup.g.nyet has address 10.13.37.13
 ```
